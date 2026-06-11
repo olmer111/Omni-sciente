@@ -1,96 +1,100 @@
-# Omni-sciente — Asistente de automatización legítimo
+# Omni-sciente
 
-Herramienta de automatización personal por voz para Android, con un modelo de
-confianza centrado en el usuario: tú defines cada macro, son visibles y editables,
-y el asistente **se aparta de pantallas sensibles** (banca, contraseñas, pagos)
-en vez de leerlas.
+Asistente de automatización personal por voz para Android. Creas macros con tu voz, las editas a mano, y el asistente las ejecuta — sin tocar apps de banca, contraseñas ni pagos.
 
-## Qué incluye
+---
 
-- **Pipeline de voz local** (Vosk, offline) con dos modos: comandos (gramática
-  restringida, alta precisión) y dictado (vocabulario libre).
-- **Servicio de accesibilidad** para navegación, toques y escritura asistida.
-- **Editor de macros** donde creas, ordenas y editas pasos a mano. Conjunto
-  cerrado de acciones (esperar, tocar por texto, escribir, navegar). Sin
-  importación ni ejecución de scripts externos.
-- **GuardiaContexto**: cortafuegos que niega la automatización sobre apps de
-  banca/pagos y se detiene si detecta campos de contraseña. Validado por tests.
-- **Frenos de emergencia**: agitar el teléfono o mantener bajar-volumen aborta
-  cualquier ejecución en curso.
-- **Burbuja de estado** flotante (escuchando / dictando / sin voz).
+## Instalar la app (sin necesitar Android Studio)
 
-## Requisitos
+### Paso 1 — Descargar el APK
 
-- Android Studio (Ladybug o superior) **o** SDK de línea de comandos.
-- Android SDK Platform 34, Build-Tools 34.
-- JDK 17.
-- Un dispositivo/emulador con Android 8.0 (API 26) o superior.
+1. Ve a la pestaña **[Actions](../../actions)** de este repositorio en GitHub
+2. Abre el workflow más reciente llamado **Build APK** (debe tener un ✓ verde)
+3. Baja hasta la sección **Artifacts** y descarga **Omnisciente-debug**
+4. Descomprime el `.zip` descargado — dentro está el archivo `app-debug.apk`
 
-## Paso 1 — Colocar el modelo de voz
+> Si el workflow todavía está corriendo (círculo amarillo), espera ~5 minutos.
 
-El reconocimiento offline necesita el modelo de Vosk en español (no se incluye
-por tamaño/licencia):
+---
 
-1. Descarga `vosk-model-small-es-0.42` (~40 MB) de https://alphacephei.com/vosk/models
-2. Descomprímelo y renombra la carpeta a `model-es`
-3. Colócala en `app/src/main/assets/model-es/`
+### Paso 2 — Permitir instalación de apps externas
 
-Ver `app/src/main/assets/COLOCAR_MODELO_AQUI.txt`. Sin el modelo, la app compila
-y arranca, pero el reconocimiento queda en estado "sin voz".
+En tu teléfono Android:
 
-## Paso 2 — Compilar el APK
+1. Ve a **Ajustes**
+2. Busca **Seguridad** (o "Privacidad y seguridad")
+3. Activa **Fuentes desconocidas** — o, en Android 8+, cuando abras el APK te pedirá permiso directamente para el navegador/gestor de archivos que uses
 
-### Opción A: Android Studio
-1. *File > Open* y selecciona esta carpeta.
-2. Deja que sincronice Gradle.
-3. *Build > Build Bundle(s) / APK(s) > Build APK(s)*.
-4. El APK de depuración queda en `app/build/outputs/apk/debug/app-debug.apk`.
+---
 
-### Opción B: línea de comandos
-Necesitas el Gradle wrapper. Si no está el `gradlew`, genéralo una vez con
-`gradle wrapper` (teniendo Gradle 8.9 instalado), o usa tu Gradle local:
+### Paso 3 — Instalar el APK
+
+1. Abre el archivo `app-debug.apk` desde tu teléfono (en la carpeta de Descargas)
+2. Toca **Instalar**
+3. Espera unos segundos — listo
+
+---
+
+### Paso 4 — Configurar la app al abrirla
+
+Al abrir Omni-sciente por primera vez verás la pantalla de bienvenida. Te pedirá 3 permisos:
+
+| Permiso | Para qué sirve |
+|---|---|
+| **Accesibilidad** | Ejecutar los pasos de tus macros (tocar, escribir, navegar) |
+| **Micrófono** | Escuchar tus comandos de voz |
+| **Superposición** | Mostrar la burbuja flotante de estado |
+
+Concede los tres y pulsa **Iniciar asistente**.
+
+---
+
+### Paso 5 — (Opcional) Activar reconocimiento de voz
+
+La app incluye reconocimiento de voz **offline** con Vosk. Para activarlo:
+
+1. Descarga el modelo en español (~40 MB): [vosk-model-small-es-0.42](https://alphacephei.com/vosk/models)
+2. Descomprime y renombra la carpeta a `model-es`
+3. Copia la carpeta a `Android/data/com.omnisciente/files/model-es/` en tu teléfono
+
+> Sin el modelo, la burbuja aparece en **rojo** (sin voz). Puedes seguir creando y ejecutando macros manualmente desde el editor.
+
+---
+
+## Qué puede hacer la app
+
+- **Macros por voz** — di el nombre de una macro y se ejecuta
+- **Editor visual** — crea y edita pasos: tocar por texto, escribir, navegar, esperar
+- **Burbuja flotante** — indica el estado: escuchando / ejecutando / sin voz
+- **Protección automática** — se detiene sola en apps de banca, pagos y campos de contraseña
+- **Frenos de emergencia** — agita el teléfono o mantén el botón de bajar volumen para abortar
+
+---
+
+## Compilar tú mismo (opcional)
+
+Si quieres modificar el código:
+
+**Requisitos:** Android Studio Ladybug+, JDK 17, Android SDK 34
 
 ```bash
-gradle assembleDebug      # o:  ./gradlew assembleDebug
-```
-
-## Paso 3 — Correr los tests de seguridad
-
-```bash
-gradle test               # o:  ./gradlew test
-```
-
-Verás los tests de `GuardiaContexto` (apps bloqueadas, negar por defecto) y de
-`pantallaSensible` (detección de campos de contraseña).
-
-## Paso 4 — Instalar en tu teléfono
-
-Con depuración USB activada:
-
-```bash
+git clone https://github.com/olmer111/Omni-sciente.git
+cd Omni-sciente
+./gradlew assembleDebug
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Al abrir, concede los permisos desde la pantalla de onboarding (accesibilidad,
-micrófono, superposición) y pulsa *Iniciar asistente*.
+---
 
-## Para producción
-
-El APK debe firmarse con **tu** clave (`keytool` + configuración de `signingConfig`),
-no con la de depuración. Y como usa `BIND_ACCESSIBILITY_SERVICE`, Play Store exige
-una política de privacidad y una declaración de uso del permiso de accesibilidad.
-El diseño de esta app (sin lectura de pantallas sensibles, sin red, todo local)
-facilita esa declaración.
-
-## Estructura
+## Estructura del código
 
 ```
 app/src/main/java/com/omnisciente/
-├── service/      OmniAccessibilityService, OmniForegroundService
-├── audio/        AudioCommandReceiver, VozManager, Vosk..., TranscriptorLocal
-├── core/         OmniOrchestrator, DictadoController
-├── overlay/      OverlayBurbuja
-├── safety/       GuardiaContexto, ParadaEmergencia, DetectorAgitacion
-├── macro/        Macro, MacroRepositorio, EjecutorMacro, editor + diálogo
-└── setup/        OnboardingActivity, PermisosHelper
+├── service/    Servicios de accesibilidad y foreground
+├── audio/      Pipeline de voz (Vosk, transcripción)
+├── core/       Orquestador y controlador de dictado
+├── overlay/    Burbuja flotante de estado
+├── safety/     GuardiaContexto, frenos de emergencia
+├── macro/      Editor y ejecutor de macros
+└── setup/      Onboarding y permisos
 ```
