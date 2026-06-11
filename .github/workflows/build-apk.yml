@@ -32,6 +32,9 @@ jobs:
       - name: Dar permisos a gradlew
         run: chmod +x gradlew
 
+      - name: Correr tests unitarios
+        run: ./gradlew testDebugUnitTest --no-daemon
+
       - name: Compilar APK debug
         run: ./gradlew assembleDebug --no-daemon
 
