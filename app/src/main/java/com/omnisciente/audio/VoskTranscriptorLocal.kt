@@ -18,6 +18,7 @@ import org.vosk.android.StorageService
 class VoskTranscriptorLocal(
     context: Context,
     private val sampleRate: Float = 16_000f,
+    vocabularioExtra: List<String> = emptyList(),
     private val onFrase: (String) -> Unit,
     private val onListo: () -> Unit = {},
     private val onError: (String) -> Unit = {}
@@ -37,12 +38,23 @@ class VoskTranscriptorLocal(
     @Volatile private var modo: Modo = Modo.COMANDO
     @Volatile private var listo = false
 
-    private val gramaticaComandos = """
-        ["regresa","atras","volver","inicio","home","principal",
-         "recientes","multitarea","notificaciones",
-         "toca el centro","tocar centro","pulsa centro",
-         "escribir nota","toma nota","dictar nota","[unk]"]
-    """.trimIndent()
+    private val gramaticaComandos: String = construirGramatica(vocabularioExtra)
+
+    private fun construirGramatica(extra: List<String>): String {
+        val frases = linkedSetOf(
+            "regresa", "atras", "volver", "inicio", "home", "principal",
+            "recientes", "multitarea", "notificaciones",
+            "toca el centro", "tocar centro", "pulsa centro",
+            "escribir nota", "toma nota", "dictar nota"
+        )
+        extra.forEach { frase ->
+            frase.trim().lowercase().takeIf { it.isNotEmpty() }?.let { frases += it }
+        }
+        frases += "[unk]"
+        val arr = org.json.JSONArray()
+        frases.forEach { arr.put(it) }
+        return arr.toString()
+    }
 
     init {
         LibVosk.setLogLevel(LogLevel.WARNINGS)

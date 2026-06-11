@@ -15,9 +15,22 @@ import com.omnisciente.audio.TranscriptorLocal
 import com.omnisciente.audio.VozManager
 import com.omnisciente.audio.VoskTranscriptorLocal
 import com.omnisciente.core.OmniOrchestrator
+import com.omnisciente.macro.EjecutorMacro
+import com.omnisciente.macro.MacroRepositorio
 import com.omnisciente.overlay.OverlayBurbuja
 import com.omnisciente.safety.DetectorAgitacion
 import com.omnisciente.safety.ParadaEmergencia
+import com.omnisciente.skills.Skill
+import com.omnisciente.skills.SkillAbrirApp
+import com.omnisciente.skills.SkillAlarma
+import com.omnisciente.skills.SkillCalculadora
+import com.omnisciente.skills.SkillEjecutarMacro
+import com.omnisciente.skills.SkillFechaHora
+import com.omnisciente.skills.SkillTemporizador
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 class OmniForegroundService : Service(), AudioCommandReceiver.PcmListener {
 
@@ -34,6 +47,7 @@ class OmniForegroundService : Service(), AudioCommandReceiver.PcmListener {
     private var detectorAgitacion: DetectorAgitacion? = null
     private var parada: ParadaEmergencia? = null
     private var avisoFalloEmitido = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
         super.onCreate()
@@ -44,6 +58,8 @@ class OmniForegroundService : Service(), AudioCommandReceiver.PcmListener {
             onTap = { anunciarEstadoActual() }
             mostrar()
         }
+
+        val skills = construirSkills()
 
         var transcriptorRef: VoskTranscriptorLocal? = null
         orquestador = OmniOrchestrator(
@@ -56,12 +72,14 @@ class OmniForegroundService : Service(), AudioCommandReceiver.PcmListener {
                         VoskTranscriptorLocal.Modo.COMANDO -> OverlayBurbuja.Estado.ESCUCHANDO
                     }
                 )
-            }
+            },
+            skills = skills
         )
         audio = AudioCommandReceiver(context = this, listener = this)
 
         val vosk = VoskTranscriptorLocal(
             context = this,
+            vocabularioExtra = skills.flatMap { it.vocabulario() },
             onFrase = { frase -> onComandoTranscrito(frase) },
             onListo = {
                 voz.hablar("Asistente listo.")
@@ -73,6 +91,24 @@ class OmniForegroundService : Service(), AudioCommandReceiver.PcmListener {
         transcriptor = vosk
 
         configurarParadaEmergencia()
+    }
+
+    /**
+     * Skills integradas, todas de procesamiento local. El vocabulario que
+     * declaran (incluidos nombres de apps y de macros) se incorpora a la
+     * gramatica del reconocedor al arrancar el servicio.
+     */
+    private fun construirSkills(): List<Skill> {
+        val repoMacros = MacroRepositorio(this)
+        val ejecutor = EjecutorMacro(voz) { OmniAccessibilityService.instance }
+        return listOf(
+            SkillEjecutarMacro(repoMacros, ejecutor, scope),
+            SkillTemporizador(this),
+            SkillAlarma(this),
+            SkillCalculadora(),
+            SkillFechaHora(),
+            SkillAbrirApp(this)
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -135,6 +171,7 @@ class OmniForegroundService : Service(), AudioCommandReceiver.PcmListener {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        scope.cancel()
         audio.detener()
         voz.apagar()
         transcriptor?.cerrar()

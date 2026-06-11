@@ -6,14 +6,17 @@ import android.util.DisplayMetrics
 import com.omnisciente.audio.VozManager
 import com.omnisciente.audio.VoskTranscriptorLocal
 import com.omnisciente.service.OmniAccessibilityService
+import com.omnisciente.skills.Skill
 
 /**
  * Cerebro local. Recibe texto transcrito y lo mapea a una accion.
  * Procesamiento 100% en dispositivo. Una intencion = un comando explicito.
+ * Las skills se consultan en orden tras los comandos del sistema.
  */
 class OmniOrchestrator(
     private val voz: VozManager,
-    private val cambiarModoVoz: (VoskTranscriptorLocal.Modo) -> Unit = {}
+    private val cambiarModoVoz: (VoskTranscriptorLocal.Modo) -> Unit = {},
+    private val skills: List<Skill> = emptyList()
 ) {
 
     sealed class Resultado {
@@ -61,11 +64,18 @@ class OmniOrchestrator(
                 navegar(servicio, AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS, "Abriendo notificaciones")
             contiene(texto, "toca el centro", "tocar centro", "pulsa centro") ->
                 tocarCentro(servicio)
-            else -> {
-                voz.hablar("No reconoci ese comando.")
-                Resultado.SinCoincidencia
-            }
+            else -> consultarSkills(texto)
         }
+    }
+
+    private fun consultarSkills(texto: String): Resultado {
+        for (skill in skills) {
+            val respuesta = runCatching { skill.atender(texto) }.getOrNull() ?: continue
+            voz.hablar(respuesta)
+            return Resultado.Ejecutado(respuesta)
+        }
+        voz.hablar("No reconoci ese comando.")
+        return Resultado.SinCoincidencia
     }
 
     /** Fuerza el regreso a modo comando, cancelando dictado si esta activo. */

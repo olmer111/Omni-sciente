@@ -13,6 +13,17 @@
     <!-- Exclusion de optimizacion de bateria (se solicita con intent al usuario) -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Skills locales: alarmas y temporizadores en la app de reloj del sistema -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+
+    <!-- Visibilidad de apps lanzables, para "abre [app]" por voz (Android 11+) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
