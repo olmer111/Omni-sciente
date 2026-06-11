@@ -42,31 +42,51 @@ class OmniOrchestrator(
             return r
         }
 
+        // Comandos que dependen del AccessibilityService. Si no esta activo,
+        // se omiten y se deja pasar a las skills (calculadora, alarma, etc.,
+        // que no necesitan accesibilidad).
         val servicio = OmniAccessibilityService.instance
-        if (servicio == null) {
-            voz.hablar("El servicio de accesibilidad no esta activo.")
+        if (servicio != null) {
+            val r = procesarComandoAccesibilidad(texto, servicio)
+            if (r != null) return r
+        } else if (requiereAccesibilidad(texto)) {
+            voz.hablar("Para eso necesito el servicio de accesibilidad activo.")
             return Resultado.Rechazado("AccessibilityService no conectado")
         }
 
-        return when {
-            contiene(texto, "escribir nota", "toma nota", "dictar nota") -> {
-                val r = dictado.iniciar()
-                if (dictado.activo) cambiarModoVoz(VoskTranscriptorLocal.Modo.DICTADO)
-                r
-            }
-            contiene(texto, "regresa", "atras", "volver") ->
-                navegar(servicio, AccessibilityService.GLOBAL_ACTION_BACK, "Regresando")
-            contiene(texto, "inicio", "home", "principal") ->
-                navegar(servicio, AccessibilityService.GLOBAL_ACTION_HOME, "Yendo al inicio")
-            contiene(texto, "recientes", "multitarea") ->
-                navegar(servicio, AccessibilityService.GLOBAL_ACTION_RECENTS, "Abriendo recientes")
-            contiene(texto, "notificaciones") ->
-                navegar(servicio, AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS, "Abriendo notificaciones")
-            contiene(texto, "toca el centro", "tocar centro", "pulsa centro") ->
-                tocarCentro(servicio)
-            else -> consultarSkills(texto)
-        }
+        return consultarSkills(texto)
     }
+
+    /** Devuelve el resultado del comando del sistema, o null si no coincide. */
+    private fun procesarComandoAccesibilidad(
+        texto: String,
+        servicio: OmniAccessibilityService
+    ): Resultado? = when {
+        contiene(texto, "escribir nota", "toma nota", "dictar nota") -> {
+            val r = dictado.iniciar()
+            if (dictado.activo) cambiarModoVoz(VoskTranscriptorLocal.Modo.DICTADO)
+            r
+        }
+        contiene(texto, "regresa", "atras", "volver") ->
+            navegar(servicio, AccessibilityService.GLOBAL_ACTION_BACK, "Regresando")
+        contiene(texto, "inicio", "home", "principal") ->
+            navegar(servicio, AccessibilityService.GLOBAL_ACTION_HOME, "Yendo al inicio")
+        contiene(texto, "recientes", "multitarea") ->
+            navegar(servicio, AccessibilityService.GLOBAL_ACTION_RECENTS, "Abriendo recientes")
+        contiene(texto, "notificaciones") ->
+            navegar(servicio, AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS, "Abriendo notificaciones")
+        contiene(texto, "toca el centro", "tocar centro", "pulsa centro") ->
+            tocarCentro(servicio)
+        else -> null
+    }
+
+    private fun requiereAccesibilidad(texto: String): Boolean = contiene(
+        texto,
+        "escribir nota", "toma nota", "dictar nota",
+        "regresa", "atras", "volver", "inicio", "home", "principal",
+        "recientes", "multitarea", "notificaciones",
+        "toca el centro", "tocar centro", "pulsa centro"
+    )
 
     private fun consultarSkills(texto: String): Resultado {
         for (skill in skills) {

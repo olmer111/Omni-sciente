@@ -63,11 +63,20 @@ La app incluye reconocimiento de voz **offline** con Vosk. Para activarlo:
 
 ## Qué puede hacer la app
 
-- **Macros por voz** — di el nombre de una macro y se ejecuta
-- **Editor visual** — crea y edita pasos: tocar por texto, escribir, navegar, esperar
-- **Burbuja flotante** — indica el estado: escuchando / ejecutando / sin voz
+**Voz y comandos**
+- **Palabra de activación** — di *"oye asistente"* para despertarlo sin tocar nada; tras 20 s en silencio se vuelve a dormir solo (burbuja lila)
+- **Skills integradas, todo offline** — temporizadores, alarmas, calculadora hablada (*"cuánto es treinta y cinco por dos"*), fecha y hora, y abrir apps por nombre (*"abre el navegador"*)
+- **Dictado por voz** a cualquier campo de texto
+- **Ejecutar macros por voz** — *"ejecuta enviar reporte"*
+
+**Macros**
+- **Editor visual** con acciones: tocar por texto, tocar coordenada, escribir, deslizar (4 direcciones), abrir app, control de medios (play/pausa/siguiente/anterior), ajustar volumen, navegar y esperar
+- **Grabador de macros** — graba tus toques y escritura reales y los convierte en pasos editables (no graba en pantallas de banca ni contraseñas)
+
+**Seguridad**
 - **Protección automática** — se detiene sola en apps de banca, pagos y campos de contraseña
 - **Frenos de emergencia** — agita el teléfono o mantén el botón de bajar volumen para abortar
+- **Sin nube** — todo el reconocimiento y procesamiento ocurre en el dispositivo
 
 ---
 
