@@ -20,6 +20,13 @@ class OmniAccessibilityService : AccessibilityService() {
     /** Callback que el servicio asigna para enrutar el freno de volumen. */
     var onFrenoHardware: (() -> Unit)? = null
 
+    /**
+     * Grabador activo, o null. Mientras esta asignado, los eventos de
+     * accesibilidad se convierten en pasos de macro; el grabador aplica
+     * sus propios filtros de seguridad (GuardiaContexto, contrasenas).
+     */
+    @Volatile var grabador: com.omnisciente.macro.GrabadorMacro? = null
+
     @Volatile var gestosCancelados = false
 
     private var volumenAbajoPresionadoTs = 0L
@@ -32,7 +39,9 @@ class OmniAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // Sin reaccion automatica: las acciones se disparan bajo demanda
-        // desde las macros o comandos de voz, con consentimiento del usuario.
+        // desde las macros o comandos de voz. Los eventos solo se observan
+        // mientras el usuario tiene una grabacion de macro en curso.
+        event?.let { grabador?.procesarEvento(it) }
     }
 
     override fun onInterrupt() { /* no-op */ }

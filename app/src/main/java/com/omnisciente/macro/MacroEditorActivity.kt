@@ -97,6 +97,29 @@ private fun PantallaMacros() {
             }
         }
 
+        OmniAccessibilityService.instance?.grabador?.let { grabacion ->
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                )
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Text(
+                        "Hay una grabacion en curso (${grabacion.cantidadPasos()} pasos).",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    TextButton(onClick = {
+                        val capturados = grabacion.detener()
+                        OmniAccessibilityService.instance?.grabador = null
+                        editando = Macro(
+                            UUID.randomUUID().toString(), "Macro grabada", "", capturados
+                        )
+                    }) { Text("Recuperar como macro nueva") }
+                }
+            }
+        }
+
         Button(onClick = {
             editando = Macro(UUID.randomUUID().toString(), "Nueva macro", "", emptyList())
         }) { Text("Crear macro") }
@@ -160,6 +183,9 @@ private fun EditorDeUnaMacro(
     var pasos by remember { mutableStateOf(macro.pasos) }
     var error by remember { mutableStateOf<String?>(null) }
     var pasoEnEdicion by remember { mutableStateOf<Int?>(null) }
+    var grabando by remember {
+        mutableStateOf(OmniAccessibilityService.instance?.grabador?.activo == true)
+    }
 
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Editar macro", style = MaterialTheme.typography.headlineSmall)
@@ -175,7 +201,40 @@ private fun EditorDeUnaMacro(
         )
 
         HorizontalDivider()
-        Text("Pasos", fontWeight = FontWeight.SemiBold)
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("Pasos", fontWeight = FontWeight.SemiBold)
+            OutlinedButton(onClick = {
+                val svc = OmniAccessibilityService.instance
+                if (svc == null) {
+                    error = "Activa el servicio de accesibilidad para poder grabar."
+                    return@OutlinedButton
+                }
+                if (!grabando) {
+                    svc.grabador = GrabadorMacro(svc.packageName)
+                    grabando = true
+                    error = null
+                } else {
+                    val capturados = svc.grabador?.detener().orEmpty()
+                    svc.grabador = null
+                    pasos = pasos + capturados
+                    grabando = false
+                    error = if (capturados.isEmpty())
+                        "La grabacion no capturo pasos." else null
+                }
+            }) { Text(if (grabando) "Detener grabacion" else "Grabar pasos") }
+        }
+        if (grabando) {
+            Text(
+                "Grabando: sal de la app, realiza los pasos a mano y vuelve aqui " +
+                    "para detener. No se graba nada en pantallas de banca o contrasenas.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
 
         pasos.forEachIndexed { i, paso ->
             Row(
