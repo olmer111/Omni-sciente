@@ -1,0 +1,13 @@
+Descarga el modelo de voz en espanol de Vosk y descomprimelo aqui como "model-es/".
+
+1. Ve a https://alphacephei.com/vosk/models
+2. Descarga "vosk-model-small-es-0.42" (~40 MB)
+3. Descomprimelo y renombra la carpeta a "model-es"
+4. El resultado debe quedar como:
+       app/src/main/assets/model-es/am/
+       app/src/main/assets/model-es/conf/
+       app/src/main/assets/model-es/graph/
+       ...
+
+Sin esta carpeta, la app compila y arranca, pero el reconocimiento de voz
+quedara en estado "sin voz" (burbuja roja) hasta que la coloques.

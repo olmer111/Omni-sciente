@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Omni-sciente</string>
+    <string name="title_macros">Mis macros</string>
+    <string name="accessibility_service_label">Asistente Omni-sciente</string>
+    <string name="accessibility_service_description">Permite al asistente leer la pantalla y ejecutar los comandos y macros que tú defines. No lee pantallas de banca ni campos de contraseña: se aparta de ellos automáticamente.</string>
+</resources>

@@ -1,0 +1,163 @@
+package com.omnisciente.service
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.IBinder
+import android.os.Process
+import androidx.core.app.NotificationCompat
+import com.omnisciente.audio.AudioCommandReceiver
+import com.omnisciente.audio.TranscriptorLocal
+import com.omnisciente.audio.VozManager
+import com.omnisciente.audio.VoskTranscriptorLocal
+import com.omnisciente.core.OmniOrchestrator
+import com.omnisciente.overlay.OverlayBurbuja
+import com.omnisciente.safety.DetectorAgitacion
+import com.omnisciente.safety.ParadaEmergencia
+
+class OmniForegroundService : Service(), AudioCommandReceiver.PcmListener {
+
+    companion object {
+        private const val CHANNEL_ID = "omni_voice_channel"
+        private const val NOTIF_ID = 1001
+    }
+
+    private lateinit var voz: VozManager
+    private lateinit var orquestador: OmniOrchestrator
+    private lateinit var audio: AudioCommandReceiver
+    private var transcriptor: TranscriptorLocal? = null
+    private var burbuja: OverlayBurbuja? = null
+    private var detectorAgitacion: DetectorAgitacion? = null
+    private var parada: ParadaEmergencia? = null
+    private var avisoFalloEmitido = false
+
+    override fun onCreate() {
+        super.onCreate()
+        crearCanalNotificacion()
+        voz = VozManager(this)
+
+        burbuja = OverlayBurbuja(this).apply {
+            onTap = { anunciarEstadoActual() }
+            mostrar()
+        }
+
+        var transcriptorRef: VoskTranscriptorLocal? = null
+        orquestador = OmniOrchestrator(
+            voz = voz,
+            cambiarModoVoz = { modo ->
+                transcriptorRef?.cambiarModo(modo)
+                burbuja?.actualizarEstado(
+                    when (modo) {
+                        VoskTranscriptorLocal.Modo.DICTADO -> OverlayBurbuja.Estado.DICTANDO
+                        VoskTranscriptorLocal.Modo.COMANDO -> OverlayBurbuja.Estado.ESCUCHANDO
+                    }
+                )
+            }
+        )
+        audio = AudioCommandReceiver(context = this, listener = this)
+
+        val vosk = VoskTranscriptorLocal(
+            context = this,
+            onFrase = { frase -> onComandoTranscrito(frase) },
+            onListo = {
+                voz.hablar("Asistente listo.")
+                burbuja?.actualizarEstado(OverlayBurbuja.Estado.ESCUCHANDO)
+            },
+            onError = { mensaje -> manejarFalloVoz(mensaje) }
+        )
+        transcriptorRef = vosk
+        transcriptor = vosk
+
+        configurarParadaEmergencia()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val notificacion = construirNotificacion()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIF_ID, notificacion, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+        } else {
+            startForeground(NOTIF_ID, notificacion)
+        }
+        audio.iniciar()
+        return START_STICKY
+    }
+
+    private fun configurarParadaEmergencia() {
+        val p = ParadaEmergencia(
+            voz = voz,
+            orquestador = orquestador,
+            onAbortar = { OmniAccessibilityService.instance?.cancelarGestosEnCurso() }
+        )
+        parada = p
+        detectorAgitacion = DetectorAgitacion(this) { p.abortar("agitacion") }.apply { iniciar() }
+        OmniAccessibilityService.instance?.onFrenoHardware = { p.abortar("boton_volumen") }
+    }
+
+    override fun onAudioFrame(buffer: ShortArray, length: Int) {
+        if (Process.getThreadPriority(Process.myTid()) != Process.THREAD_PRIORITY_URGENT_AUDIO) {
+            runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO) }
+        }
+        transcriptor?.alimentar(buffer, length)
+    }
+
+    override fun onError(message: String) { /* loggea si lo deseas */ }
+
+    fun onComandoTranscrito(texto: String) {
+        orquestador.procesarComando(texto)
+    }
+
+    private fun manejarFalloVoz(mensaje: String) {
+        burbuja?.actualizarEstado(OverlayBurbuja.Estado.SIN_VOZ)
+        if (!avisoFalloEmitido) {
+            avisoFalloEmitido = true
+            voz.hablar(
+                "No pude cargar el reconocimiento de voz. Revisa que el modelo " +
+                    "este instalado. El asistente sigue activo, pero sin comandos por voz."
+            )
+        }
+        android.util.Log.e("OmniVoz", mensaje)
+    }
+
+    private fun anunciarEstadoActual() {
+        val t = transcriptor as? VoskTranscriptorLocal
+        when (t?.salud) {
+            VoskTranscriptorLocal.Salud.OPERATIVO -> voz.hablar("Asistente activo. Dime un comando.")
+            VoskTranscriptorLocal.Salud.CARGANDO -> voz.hablar("Cargando el reconocimiento de voz, un momento.")
+            VoskTranscriptorLocal.Salud.FALLO_MODELO -> voz.hablar("El reconocimiento de voz no esta disponible.")
+            null -> voz.hablar("Asistente iniciando.")
+        }
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onDestroy() {
+        audio.detener()
+        voz.apagar()
+        transcriptor?.cerrar()
+        detectorAgitacion?.detener()
+        burbuja?.ocultar()
+        super.onDestroy()
+    }
+
+    private fun crearCanalNotificacion() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val canal = NotificationChannel(
+                CHANNEL_ID, "Asistente de voz Omni", NotificationManager.IMPORTANCE_LOW
+            ).apply { description = "Escucha activa del asistente" }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(canal)
+        }
+    }
+
+    private fun construirNotificacion(): Notification =
+        NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Omni-sciente activo")
+            .setContentText("Escuchando comandos de voz")
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+}
