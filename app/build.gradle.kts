@@ -42,6 +42,9 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    androidResources {
+        noCompress += listOf("bin", "mdl", "mat", "fst", "conf", "txt", "dat")
+    }
 }
 
 dependencies {
