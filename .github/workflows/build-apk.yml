@@ -22,6 +22,13 @@ jobs:
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Descargar modelo Vosk español
+        run: |
+          curl -L -o /tmp/vosk-model.zip \
+            "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip"
+          unzip /tmp/vosk-model.zip -d /tmp/vosk/
+          mv /tmp/vosk/vosk-model-small-es-0.42 app/src/main/assets/model-es
+
       - name: Dar permisos a gradlew
         run: chmod +x gradlew
 
@@ -31,6 +38,6 @@ jobs:
       - name: Subir APK como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: Omnisciente-debug
+          name: Omnisciente-con-voz
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
