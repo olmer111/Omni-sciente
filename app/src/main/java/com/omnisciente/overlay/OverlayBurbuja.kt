@@ -21,6 +21,7 @@ class OverlayBurbuja(private val context: Context) {
 
     enum class Estado(val etiqueta: String, val color: Int) {
         INACTIVO("\u25CF", Color.parseColor("#9E9E9E")),
+        DORMIDO("\u263E", Color.parseColor("#7E57C2")),
         ESCUCHANDO("\u25CF", Color.parseColor("#4CAF50")),
         DICTANDO("\u270E", Color.parseColor("#2196F3")),
         SIN_VOZ("\u26A0", Color.parseColor("#F44336"))

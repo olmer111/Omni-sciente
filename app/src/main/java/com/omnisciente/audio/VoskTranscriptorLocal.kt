@@ -3,6 +3,7 @@ package com.omnisciente.audio
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import org.json.JSONArray
 import org.json.JSONObject
 import org.vosk.LibVosk
 import org.vosk.LogLevel
@@ -12,19 +13,28 @@ import org.vosk.android.StorageService
 
 /**
  * Motor de voz offline basado en Vosk. Consume tramas PCM 16-bit / 16 kHz
- * y entrega frases cerradas via [onFrase]. Dos recognizers: gramatica
- * restringida para comandos y libre para dictado.
+ * y entrega frases cerradas via [onFrase].
+ *
+ * Tres modos:
+ *  - DORMIDO: solo reacciona a la palabra de activacion ("oye asistente").
+ *  - COMANDO: gramatica restringida de alta precision. Si pasa
+ *    [timeoutVigiliaMs] sin comandos, vuelve a dormirse solo.
+ *  - DICTADO: vocabulario libre para tomar notas.
  */
 class VoskTranscriptorLocal(
     context: Context,
     private val sampleRate: Float = 16_000f,
     vocabularioExtra: List<String> = emptyList(),
+    private val wakeWordActiva: Boolean = true,
+    private val timeoutVigiliaMs: Long = 20_000L,
     private val onFrase: (String) -> Unit,
     private val onListo: () -> Unit = {},
-    private val onError: (String) -> Unit = {}
+    private val onError: (String) -> Unit = {},
+    private val onDespierto: () -> Unit = {},
+    private val onDormido: () -> Unit = {}
 ) : TranscriptorLocal {
 
-    enum class Modo { COMANDO, DICTADO }
+    enum class Modo { DORMIDO, COMANDO, DICTADO }
     enum class Salud { CARGANDO, OPERATIVO, FALLO_MODELO }
 
     @Volatile var salud: Salud = Salud.CARGANDO
@@ -35,10 +45,26 @@ class VoskTranscriptorLocal(
     private var model: Model? = null
     private var recComando: Recognizer? = null
     private var recDictado: Recognizer? = null
-    @Volatile private var modo: Modo = Modo.COMANDO
+    private var recDespertar: Recognizer? = null
+    @Volatile private var modo: Modo = if (wakeWordActiva) Modo.DORMIDO else Modo.COMANDO
     @Volatile private var listo = false
 
+    val modoActual: Modo get() = modo
+
+    /** Frases que despiertan al asistente. Palabras comunes del espanol,
+     *  presentes con seguridad en el vocabulario del modelo. */
+    private val frasesDespertar = listOf("oye asistente", "hola asistente")
+
     private val gramaticaComandos: String = construirGramatica(vocabularioExtra)
+    private val gramaticaDespertar: String =
+        JSONArray(frasesDespertar + "[unk]").toString()
+
+    private val dormirRunnable = Runnable {
+        if (wakeWordActiva && modo == Modo.COMANDO) {
+            cambiarModo(Modo.DORMIDO)
+            onDormido()
+        }
+    }
 
     private fun construirGramatica(extra: List<String>): String {
         val frases = linkedSetOf(
@@ -51,7 +77,7 @@ class VoskTranscriptorLocal(
             frase.trim().lowercase().takeIf { it.isNotEmpty() }?.let { frases += it }
         }
         frases += "[unk]"
-        val arr = org.json.JSONArray()
+        val arr = JSONArray()
         frases.forEach { arr.put(it) }
         return arr.toString()
     }
@@ -63,8 +89,15 @@ class VoskTranscriptorLocal(
             { modelo ->
                 runCatching {
                     model = modelo
-                    recComando = Recognizer(modelo, sampleRate, gramaticaComandos)
+                    // Si la gramatica trae palabras fuera del vocabulario del
+                    // modelo y el recognizer falla, degradar a decodificacion libre.
+                    recComando = runCatching { Recognizer(modelo, sampleRate, gramaticaComandos) }
+                        .getOrElse { Recognizer(modelo, sampleRate) }
                     recDictado = Recognizer(modelo, sampleRate)
+                    recDespertar = if (wakeWordActiva) {
+                        runCatching { Recognizer(modelo, sampleRate, gramaticaDespertar) }
+                            .getOrElse { Recognizer(modelo, sampleRate) }
+                    } else null
                 }.onSuccess {
                     salud = Salud.OPERATIVO
                     listo = true
@@ -88,21 +121,47 @@ class VoskTranscriptorLocal(
         when (modo) {
             Modo.COMANDO -> recComando?.reset()
             Modo.DICTADO -> recDictado?.reset()
+            Modo.DORMIDO -> recDespertar?.reset()
         }
         modo = nuevo
+        if (nuevo == Modo.COMANDO && wakeWordActiva) reiniciarTemporizadorSueno()
+        else mainHandler.removeCallbacks(dormirRunnable)
+    }
+
+    /** Despierta al asistente sin decir la frase (p. ej. tocando la burbuja). */
+    fun despertar() {
+        if (modo != Modo.DORMIDO) return
+        cambiarModo(Modo.COMANDO)
+        mainHandler.post(onDespierto)
+    }
+
+    private fun reiniciarTemporizadorSueno() {
+        mainHandler.removeCallbacks(dormirRunnable)
+        mainHandler.postDelayed(dormirRunnable, timeoutVigiliaMs)
     }
 
     override fun alimentar(buffer: ShortArray, length: Int) {
         if (!listo) return
-        val rec = when (modo) {
-            Modo.COMANDO -> recComando
-            Modo.DICTADO -> recDictado
-        } ?: return
-
-        if (rec.acceptWaveForm(buffer, length)) {
-            val texto = extraerCampo(rec.result, "text")
-            if (texto.isNotBlank() && texto != "[unk]") {
-                mainHandler.post { onFrase(texto) }
+        when (modo) {
+            Modo.DORMIDO -> {
+                val rec = recDespertar ?: return
+                if (rec.acceptWaveForm(buffer, length)) {
+                    val texto = extraerCampo(rec.result, "text")
+                    if (frasesDespertar.any { texto.contains(it) }) {
+                        cambiarModo(Modo.COMANDO)
+                        mainHandler.post(onDespierto)
+                    }
+                }
+            }
+            Modo.COMANDO, Modo.DICTADO -> {
+                val rec = (if (modo == Modo.COMANDO) recComando else recDictado) ?: return
+                if (rec.acceptWaveForm(buffer, length)) {
+                    val texto = extraerCampo(rec.result, "text")
+                    if (texto.isNotBlank() && texto != "[unk]") {
+                        if (modo == Modo.COMANDO && wakeWordActiva) reiniciarTemporizadorSueno()
+                        mainHandler.post { onFrase(texto) }
+                    }
+                }
             }
         }
     }
@@ -112,8 +171,10 @@ class VoskTranscriptorLocal(
 
     override fun cerrar() {
         listo = false
+        mainHandler.removeCallbacks(dormirRunnable)
         recComando?.close(); recComando = null
         recDictado?.close(); recDictado = null
+        recDespertar?.close(); recDespertar = null
         model?.close(); model = null
     }
 }

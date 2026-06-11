@@ -70,6 +70,7 @@ class OmniForegroundService : Service(), AudioCommandReceiver.PcmListener {
                     when (modo) {
                         VoskTranscriptorLocal.Modo.DICTADO -> OverlayBurbuja.Estado.DICTANDO
                         VoskTranscriptorLocal.Modo.COMANDO -> OverlayBurbuja.Estado.ESCUCHANDO
+                        VoskTranscriptorLocal.Modo.DORMIDO -> OverlayBurbuja.Estado.DORMIDO
                     }
                 )
             },
@@ -82,10 +83,17 @@ class OmniForegroundService : Service(), AudioCommandReceiver.PcmListener {
             vocabularioExtra = skills.flatMap { it.vocabulario() },
             onFrase = { frase -> onComandoTranscrito(frase) },
             onListo = {
-                voz.hablar("Asistente listo.")
+                voz.hablar("Asistente listo. Di: oye asistente, para activarme.")
+                burbuja?.actualizarEstado(OverlayBurbuja.Estado.DORMIDO)
+            },
+            onError = { mensaje -> manejarFalloVoz(mensaje) },
+            onDespierto = {
+                voz.hablar("Te escucho.")
                 burbuja?.actualizarEstado(OverlayBurbuja.Estado.ESCUCHANDO)
             },
-            onError = { mensaje -> manejarFalloVoz(mensaje) }
+            onDormido = {
+                burbuja?.actualizarEstado(OverlayBurbuja.Estado.DORMIDO)
+            }
         )
         transcriptorRef = vosk
         transcriptor = vosk
@@ -161,7 +169,13 @@ class OmniForegroundService : Service(), AudioCommandReceiver.PcmListener {
     private fun anunciarEstadoActual() {
         val t = transcriptor as? VoskTranscriptorLocal
         when (t?.salud) {
-            VoskTranscriptorLocal.Salud.OPERATIVO -> voz.hablar("Asistente activo. Dime un comando.")
+            VoskTranscriptorLocal.Salud.OPERATIVO ->
+                if (t.modoActual == VoskTranscriptorLocal.Modo.DORMIDO) {
+                    // Tocar la burbuja tambien despierta al asistente.
+                    t.despertar()
+                } else {
+                    voz.hablar("Asistente activo. Dime un comando.")
+                }
             VoskTranscriptorLocal.Salud.CARGANDO -> voz.hablar("Cargando el reconocimiento de voz, un momento.")
             VoskTranscriptorLocal.Salud.FALLO_MODELO -> voz.hablar("El reconocimiento de voz no esta disponible.")
             null -> voz.hablar("Asistente iniciando.")
