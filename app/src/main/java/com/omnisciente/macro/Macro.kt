@@ -17,4 +17,13 @@ sealed class PasoMacro {
     data class TocarPorTexto(val texto: String) : PasoMacro()
     data class EscribirTexto(val contenido: String) : PasoMacro()
     data class Navegar(val accionGlobal: Int) : PasoMacro()
+    data class TocarCoordenada(val x: Float, val y: Float) : PasoMacro()
+    data class Deslizar(val direccion: Direccion) : PasoMacro()
+    data class AbrirApp(val paquete: String) : PasoMacro()
+    data class ControlMedios(val accion: AccionMedios) : PasoMacro()
+    data class AjustarVolumen(val accion: AccionVolumen) : PasoMacro()
+
+    enum class Direccion { ARRIBA, ABAJO, IZQUIERDA, DERECHA }
+    enum class AccionMedios { REPRODUCIR_PAUSAR, SIGUIENTE, ANTERIOR }
+    enum class AccionVolumen { SUBIR, BAJAR, SILENCIAR }
 }

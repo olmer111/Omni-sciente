@@ -2,7 +2,9 @@ package com.omnisciente.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.Intent
 import android.graphics.Path
+import android.media.AudioManager
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
@@ -80,6 +82,41 @@ class OmniAccessibilityService : AccessibilityService() {
             .addStroke(GestureDescription.StrokeDescription(path, 0L, duracionMs))
             .build()
         dispatchGesture(gesto, null, null)
+    }
+
+    /** Deslizamiento entre dos puntos via dispatchGesture. */
+    fun ejecutarDeslizamientoAsistido(
+        desdeX: Float, desdeY: Float, hastaX: Float, hastaY: Float,
+        duracionMs: Long = 300L
+    ): Boolean {
+        val path = Path().apply { moveTo(desdeX, desdeY); lineTo(hastaX, hastaY) }
+        val gesto = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, duracionMs))
+            .build()
+        return dispatchGesture(gesto, null, null)
+    }
+
+    /** Envia una tecla multimedia (play/pausa, siguiente, anterior). */
+    fun enviarTeclaMedios(keyCode: Int): Boolean {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+        am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+        return true
+    }
+
+    /** Ajusta volumen multimedia (ADJUST_RAISE / ADJUST_LOWER / ADJUST_TOGGLE_MUTE). */
+    fun ajustarVolumenMedios(direccion: Int): Boolean {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        return runCatching {
+            am.adjustStreamVolume(AudioManager.STREAM_MUSIC, direccion, 0)
+        }.isSuccess
+    }
+
+    /** Abre una app por nombre de paquete, si esta instalada. */
+    fun abrirAplicacion(paquete: String): Boolean {
+        val intent = packageManager.getLaunchIntentForPackage(paquete) ?: return false
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching { startActivity(intent) }.isSuccess
     }
 
     /** Navegacion global del sistema (p. ej. GLOBAL_ACTION_BACK). */

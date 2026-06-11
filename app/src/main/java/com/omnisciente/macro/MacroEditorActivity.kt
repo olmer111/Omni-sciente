@@ -202,6 +202,25 @@ private fun EditorDeUnaMacro(
             AssistChip(onClick = {
                 pasos = pasos + PasoMacro.EscribirTexto(""); pasoEnEdicion = pasos.size - 1
             }, label = { Text("+ Escribir") })
+            AssistChip(onClick = {
+                pasos = pasos + PasoMacro.Deslizar(PasoMacro.Direccion.ABAJO); pasoEnEdicion = pasos.size - 1
+            }, label = { Text("+ Deslizar") })
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AssistChip(onClick = {
+                pasos = pasos + PasoMacro.TocarCoordenada(0f, 0f); pasoEnEdicion = pasos.size - 1
+            }, label = { Text("+ Tocar X,Y") })
+            AssistChip(onClick = {
+                pasos = pasos + PasoMacro.AbrirApp(""); pasoEnEdicion = pasos.size - 1
+            }, label = { Text("+ Abrir app") })
+            AssistChip(onClick = {
+                pasos = pasos + PasoMacro.ControlMedios(PasoMacro.AccionMedios.REPRODUCIR_PAUSAR)
+                pasoEnEdicion = pasos.size - 1
+            }, label = { Text("+ Medios") })
+            AssistChip(onClick = {
+                pasos = pasos + PasoMacro.AjustarVolumen(PasoMacro.AccionVolumen.SUBIR)
+                pasoEnEdicion = pasos.size - 1
+            }, label = { Text("+ Volumen") })
         }
 
         error?.let {
@@ -234,6 +253,7 @@ private fun EditorDeUnaMacro(
                     val vacio = when (p) {
                         is PasoMacro.TocarPorTexto -> p.texto.isEmpty()
                         is PasoMacro.EscribirTexto -> p.contenido.isEmpty()
+                        is PasoMacro.AbrirApp -> p.paquete.isEmpty()
                         else -> false
                     }
                     if (vacio) pasos = pasos.filterIndexed { i, _ -> i != idx }
@@ -249,6 +269,11 @@ private fun describirPaso(paso: PasoMacro): String = when (paso) {
     is PasoMacro.TocarPorTexto -> "Tocar \"${paso.texto}\""
     is PasoMacro.EscribirTexto -> "Escribir \"${paso.contenido}\""
     is PasoMacro.Navegar -> "Navegar (${paso.accionGlobal})"
+    is PasoMacro.TocarCoordenada -> "Tocar en (${paso.x.toInt()}, ${paso.y.toInt()})"
+    is PasoMacro.Deslizar -> "Deslizar ${paso.direccion.name.lowercase()}"
+    is PasoMacro.AbrirApp -> "Abrir ${paso.paquete.ifEmpty { "(sin app)" }}"
+    is PasoMacro.ControlMedios -> "Medios: ${paso.accion.name.lowercase().replace('_', ' ')}"
+    is PasoMacro.AjustarVolumen -> "Volumen: ${paso.accion.name.lowercase()}"
 }
 
 private fun <T> mover(lista: List<T>, desde: Int, hacia: Int): List<T> {

@@ -43,6 +43,12 @@ class MacroRepositorio(context: Context) {
                 is PasoMacro.TocarPorTexto -> obj.put("tipo", "tocar").put("texto", paso.texto)
                 is PasoMacro.EscribirTexto -> obj.put("tipo", "escribir").put("contenido", paso.contenido)
                 is PasoMacro.Navegar -> obj.put("tipo", "navegar").put("accion", paso.accionGlobal)
+                is PasoMacro.TocarCoordenada -> obj.put("tipo", "tocarXY")
+                    .put("x", paso.x.toDouble()).put("y", paso.y.toDouble())
+                is PasoMacro.Deslizar -> obj.put("tipo", "deslizar").put("direccion", paso.direccion.name)
+                is PasoMacro.AbrirApp -> obj.put("tipo", "abrirApp").put("paquete", paso.paquete)
+                is PasoMacro.ControlMedios -> obj.put("tipo", "medios").put("accion", paso.accion.name)
+                is PasoMacro.AjustarVolumen -> obj.put("tipo", "volumen").put("accion", paso.accion.name)
             }
             pasos.put(obj)
         }
@@ -60,6 +66,22 @@ class MacroRepositorio(context: Context) {
                 "tocar" -> PasoMacro.TocarPorTexto(p.getString("texto"))
                 "escribir" -> PasoMacro.EscribirTexto(p.getString("contenido"))
                 "navegar" -> PasoMacro.Navegar(p.getInt("accion"))
+                "tocarXY" -> PasoMacro.TocarCoordenada(
+                    p.getDouble("x").toFloat(), p.getDouble("y").toFloat()
+                )
+                "deslizar" -> PasoMacro.Deslizar(
+                    runCatching { PasoMacro.Direccion.valueOf(p.getString("direccion")) }
+                        .getOrDefault(PasoMacro.Direccion.ABAJO)
+                )
+                "abrirApp" -> PasoMacro.AbrirApp(p.getString("paquete"))
+                "medios" -> PasoMacro.ControlMedios(
+                    runCatching { PasoMacro.AccionMedios.valueOf(p.getString("accion")) }
+                        .getOrDefault(PasoMacro.AccionMedios.REPRODUCIR_PAUSAR)
+                )
+                "volumen" -> PasoMacro.AjustarVolumen(
+                    runCatching { PasoMacro.AccionVolumen.valueOf(p.getString("accion")) }
+                        .getOrDefault(PasoMacro.AccionVolumen.SUBIR)
+                )
                 else -> PasoMacro.Esperar(0)
             }
         }
